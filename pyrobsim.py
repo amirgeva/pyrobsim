@@ -28,11 +28,26 @@ class vec2:
             self.x = p.x()
             self.y = p.y()
 
+    def __iadd__(self, other):
+        self.x += other.x
+        self.y += other.y
+        return self
+
     def __sub__(self, other):
         return vec2(self.x-other.x,self.y-other.y)
 
+    def __add__(self, other):
+        return vec2(self.x + other.x, self.y + other.y)
+
     def __mul__(self, other):
         return self.x*other.x+self.y*other.y
+
+    def __getitem__(self, item):
+        if item==0:
+            return self.x
+        if item==1:
+            return self.y
+        return 0.0
 
     def norm(self):
         return math.sqrt(self*self)
@@ -123,7 +138,8 @@ class Robot(Object):
         self.sensor_angle=0
         self.mat=QtGui.QMatrix()
         self.mat.rotate(self.angle)
-        self.velocity=(20.0,19.0)
+        self.velocity=vec2(20.0,19.0)
+        self.encoders=vec2(0.0,0.0)
 
     def set_sensor_angle(self,a):
         self.sensor_angle=a
