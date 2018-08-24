@@ -214,7 +214,7 @@ class API:
                         args = [float(a) for a in words[1:]]
                         response = self.callback(cmd, args)
                         if len(response)>0:
-                            send_sock.sendto(address, response)
+                            send_sock.sendto(bytes(response,'utf-8'),(address[0],9081))
                     except ValueError:
                         pass
             except OSError as e:

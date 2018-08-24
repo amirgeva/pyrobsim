@@ -11,7 +11,7 @@ draw_circles = False
 start = time.time()
 RAD2DEG = 180.0 / 3.14159265358979
 DEBUG = False
-START_POS=pt(300,300)
+START_POS=pt(150,150)
 
 class Object:
     def __init__(self):
@@ -106,10 +106,10 @@ class Robot(Object):
             distance = ray_intersection(position, direction, 100.0, o)
             if distance >= 0 or minimum_distance < 0:
                 minimum_distance = distance
-        return str(minimum_distance)
+        return 'S {}'.format(minimum_distance)
 
     def command_encoders(self, args):
-        result = '{} {}'.format(*self.encoder_clicks)
+        result = 'E {} {}'.format(*self.encoder_clicks)
         self.encoder_clicks = (0, 0)
         return result
 
@@ -207,6 +207,21 @@ class SandboxWidget(QtWidgets.QWidget):
         self.over=False
         self.robot.restart()
 
+    def load_scene(self,path):
+        del self.obstacles[:]
+        try:
+            with open(path,'r') as f:
+                for line in f.readlines():
+                    p=line.strip().split()
+                    if len(p)==5:
+                        try:
+                            p=[float(v) for v in p]
+                            self.obstacles.append(Obstacle(*p))
+                        except ValueError:
+                            pass
+        except IOError:
+            QtWidgets.QMessageBox(None,"Error","{} not found".format(path))
+
     def draw_grid(self, qp):
         w = self.width()
         h = self.height()
@@ -252,7 +267,7 @@ class SandboxWidget(QtWidgets.QWidget):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, scene_path, parent=None):
         super(MainWindow, self).__init__(parent, QtCore.Qt.WindowFlags())
         self.setWindowTitle('Robot Simulator')
         self.sandbox = SandboxWidget()
@@ -266,13 +281,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.paused=False
         if self.sandbox.robot.api.done:
             self.done=True
+        if scene_path:
+            self.sandbox.load_scene(scene_path)
 
     def setup_toolbar(self):
         tb = self.addToolBar('Actions')
         tb.setObjectName("Toolbar")
+        tb.addAction(QtGui.QIcon('open.png'), 'Open').triggered.connect(self.open_scene)
         tb.addAction(QtGui.QIcon('restart.png'), 'Restart').triggered.connect(self.restart)
         tb.addAction(QtGui.QIcon('pause.png'), 'Pause').triggered.connect(self.pause)
         tb.addAction(QtGui.QIcon('play.png'), 'Play').triggered.connect(self.play)
+
+    def open_scene(self):
+        path, filter = QtWidgets.QFileDialog.getOpenFileName(self,'Open Scene File','.','*.scene')
+        if path:
+            self.sandbox.load_scene(path)
 
     def restart(self):
         self.sandbox.restart()
@@ -298,12 +321,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main():
+    scene_path=''
     for arg in sys.argv:
         if arg == 'dbg':
             global DEBUG
             DEBUG = True
+        if arg.endswith('.scene'):
+            scene_path=arg
     app = QtWidgets.QApplication(sys.argv)
-    w = MainWindow()
+    w = MainWindow(scene_path)
     if not w.done:
         w.show()
         app.exec_()
