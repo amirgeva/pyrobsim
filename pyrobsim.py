@@ -103,7 +103,7 @@ class Robot(Object):
         direction = self.get_sensor_direction()
         minimum_distance = -1
         for o in self.obstacles:
-            distance = ray_intersection(position, direction, 100.0, o)
+            distance = ray_intersection(position, direction, 200.0, o)
             if distance >= 0 or minimum_distance < 0:
                 minimum_distance = distance
         return 'S {}'.format(minimum_distance)

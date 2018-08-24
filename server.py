@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import errno
+import sys
 
 
 def get_error_name(e):
@@ -202,7 +203,7 @@ class API:
             try:
                 data, address = sock.recvfrom(256)
                 if len(data) == 0:
-                    time.sleep(0.05)
+                    time.sleep(0.01)
                 else:
                     words = str(data,encoding='utf-8').strip().split()
                     if DEBUG:
@@ -222,6 +223,5 @@ class API:
                 if error_number != errno.EAGAIN  and error_number != errno.EWOULDBLOCK:
                     reason = get_error_name(error_number)
                     print("Socket Error ({}): {}".format(error_number, reason))
-            time.sleep(0.05)
         sock.close()
         send_sock.close()

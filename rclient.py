@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import errno
+import sys
 
 
 class Robot:
@@ -36,7 +37,7 @@ class Robot:
 
     def shutdown(self):
         self.done=True
-        time.sleep(0.5)
+        self.receive_thread.join()
 
     def receive_loop(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -46,10 +47,10 @@ class Robot:
             try:
                 data, addr = sock.recvfrom(256)
                 if len(data) == 0:
-                    time.sleep(0.05)
+                    time.sleep(0.01)
                 else:
                     response = str(data, 'utf-8')
-                    print("Received from '{}' data='{}'".format(addr, response))
+                    #print("Received from '{}' data='{}'".format(addr, response))
                     try:
                         p = response.strip().split()
                         if p[0] == 'S':
@@ -63,14 +64,16 @@ class Robot:
                 if errnum != errno.EAGAIN and errnum != errno.EWOULDBLOCK:
                     reason = ''  # get_error_name(errnum)
                     print("Socket Error ({}): {}".format(errnum, reason))
-        time.sleep(0.05)
 
 
 def unit_test():
     r=Robot()
-    print(r.sense())
-    r.drive(10,10)
-    time.sleep(1)
+    #print(r.sense())
+    #r.drive(10,10)
+    #time.sleep(1)
+    for i in range(-45,45):
+        r.sensor_angle(i)
+        time.sleep(0.1)
     r.shutdown()
 
 
