@@ -34,7 +34,15 @@ class vec2:
         return vec2(self.x + other.x, self.y + other.y)
 
     def __mul__(self, other):
-        return self.x*other.x+self.y*other.y
+        if isinstance(other,vec2):
+            return self.x*other.x+self.y*other.y
+        return vec2(self.x*other,self.y*other)
+
+    def __truediv__(self, other):
+        return vec2(self.x/other,self.y/other)
+
+    def cross(self,other):
+        return self.x*other.y-self.y*other.x
 
     def __getitem__(self, item):
         if item==0:
