@@ -1,5 +1,15 @@
-import socket
+import time
+import rclient
 
+r=rclient.Robot()
+x=0.0
+r.drive(50, 50)
+while x<400:
+    e=r.read_encoders()
+    if e:
+        x=x+e[0]
+        if e[0] > 0:
+            print(x)
+    time.sleep(0.01)
+r.shutdown()
 
-s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-s.sendto(b'V 30 25',('127.0.0.1',9080))

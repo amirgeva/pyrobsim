@@ -4,6 +4,7 @@ import time
 import errno
 import sys
 
+DEBUG = False
 
 def get_error_name(e):
     if e == errno.EPERM:
@@ -190,7 +191,8 @@ class API:
         time.sleep(0.1)
 
     def receive_loop(self):
-        from pyrobsim import DEBUG
+        if DEBUG:
+            print("Server running in DEBUG")
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.bind(('127.0.0.1', 9080))
@@ -214,7 +216,9 @@ class API:
                         cmd = words[0]
                         args = [float(a) for a in words[1:]]
                         response = self.callback(cmd, args)
-                        if len(response)>0:
+                        if response:
+                            if DEBUG:
+                                print("Sending response: '{}'".format(response))
                             send_sock.sendto(bytes(response,'utf-8'),(address[0],9081))
                     except ValueError:
                         pass

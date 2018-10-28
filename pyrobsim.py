@@ -5,13 +5,22 @@ import time
 from PyQt5 import QtCore, QtGui, QtWidgets
 from vtypes import matrix, pt, vec2
 from geometry import check_intersection, ray_intersection
-from server import API
+import server
 
 draw_circles = False
 start = time.time()
 RAD2DEG = 180.0 / 3.14159265358979
-DEBUG = False
-START_POS=pt(150,150)
+START_POS = pt(150, 150)
+
+
+def parse_line(line):
+    p = line.strip().split()
+    try:
+        p = [float(v) for v in p]
+        return p
+    except ValueError:
+        return None
+
 
 class Object:
     def __init__(self):
@@ -57,9 +66,11 @@ class Robot(Object):
         self.orig_pic = QtGui.QImage('robot.png')
         self.build_rect_poly(self.orig_pic.width(), self.orig_pic.height())
         self.orig_poly = self.poly
-        self.pos = START_POS
+        self.start_pose = (150,150,0)
+        self.pos = pt(0,0)
         self.width = self.orig_pic.width()
         self.angle = 0
+        self.restart()
         self.sensor_angle = 0
         self.mat = matrix(self.angle)
         self.velocity = vec2(0.0, 0.0)
@@ -67,15 +78,15 @@ class Robot(Object):
         self.encoder_clicks = (0, 0)
         self.pic = self.orig_pic.transformed(QtGui.QTransform())
         self.servo_pos = pt(0, -20)
-        self.api = API(self.process_command)
+        self.api = server.API(self.process_command)
         self.commands = {'V': self.command_velocity, 'SA': self.command_sensor_angle, 'S': self.command_sensor,
-                         'E': self.command_encoders}
+                         'E': self.command_encoders, 'RESET': self.command_reset}
 
     def restart(self):
-        self.set_pos(START_POS)
-        self.set_angle(0.0)
+        self.set_pos(self.start_pose[0],self.start_pose[1])
+        self.set_angle(self.start_pose[2])
         self.set_sensor_angle(0.0)
-        self.velocity = vec2(0.0,0.0)
+        self.velocity = vec2(0.0, 0.0)
         self.encoders = vec2(0.0, 0.0)
         self.encoder_clicks = (0, 0)
 
@@ -87,6 +98,9 @@ class Robot(Object):
             return ''
         handler = self.commands.get(cmd)
         return handler(args)
+
+    def command_reset(self,args):
+        self.restart()
 
     def command_velocity(self, args):
         if len(args) == 2:
@@ -138,14 +152,18 @@ class Robot(Object):
         self.mat.rotate(da)
 
     def set_pos(self, *args):
-        if len(args)==2:
-            self.pos = pt(args[0],args[1])
-        elif len(args)==1:
-            a=args[0]
-            if isinstance(a,vec2):
-                self.pos=pt(a.x,a.y)
+        if len(args) == 2:
+            self.pos = pt(args[0], args[1])
+        elif len(args) == 1:
+            a = args[0]
+            if isinstance(a, vec2):
+                self.pos = pt(a.x, a.y)
             else:
-                self.pos=a
+                self.pos = a
+
+    def set_start_pose(self,x,y,a):
+        self.start_pose=(x,y,a)
+        self.restart()
 
     def pic_center(self):
         return 0.5 * pt(self.pic.width(), self.pic.height())
@@ -200,27 +218,28 @@ class SandboxWidget(QtWidgets.QWidget):
         self.over = False
         self.setMinimumSize(800, 600)
         self.obstacles = [Obstacle(300, 100, 150, 30, 20)]
+        self.lines = []
         self.robot = Robot()
         self.robot.set_obstacles(self.obstacles)
 
     def restart(self):
-        self.over=False
+        self.over = False
         self.robot.restart()
 
-    def load_scene(self,path):
+    def load_scene(self, path):
         del self.obstacles[:]
         try:
-            with open(path,'r') as f:
+            with open(path, 'r') as f:
                 for line in f.readlines():
-                    p=line.strip().split()
-                    if len(p)==5:
-                        try:
-                            p=[float(v) for v in p]
-                            self.obstacles.append(Obstacle(*p))
-                        except ValueError:
-                            pass
+                    p = parse_line(line)
+                    if len(p) == 5:
+                        self.obstacles.append(Obstacle(*p))
+                    if len(p) == 4:
+                        self.lines.append(tuple(p))
+                    if len(p) == 3:
+                        self.robot.set_start_pose(*p)
         except IOError:
-            QtWidgets.QMessageBox(None,"Error","{} not found".format(path))
+            QtWidgets.QMessageBox(None, "Error", "{} not found".format(path))
 
     def draw_grid(self, qp):
         w = self.width()
@@ -240,10 +259,18 @@ class SandboxWidget(QtWidgets.QWidget):
             y += step
             x += step
 
+    def draw_lines(self, qp):
+        pen = QtGui.QPen(QtGui.QBrush(QtGui.QColor(255, 96, 32)), 3)
+        qp.setPen(pen)
+        for line in self.lines:
+            qp.drawLine(line[0],line[1],line[2],line[3])
+            #qp.drawLine(int(line[0]),int(line[1]),int(line[2]),int(line[3]))
+
     def paintEvent(self, event):
         qp = QtGui.QPainter()
         qp.begin(self)
         self.draw_grid(qp)
+        self.draw_lines(qp)
         for o in self.obstacles:
             o.draw(qp)
         self.robot.draw(qp)
@@ -275,12 +302,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.last_time = 0
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.on_timer)
-        self.timer.start(100)
+        self.timer.start(10)
         self.setup_toolbar()
-        self.done=False
-        self.paused=False
+        self.done = False
+        self.paused = False
         if self.sandbox.robot.api.done:
-            self.done=True
+            self.done = True
         if scene_path:
             self.sandbox.load_scene(scene_path)
 
@@ -293,7 +320,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tb.addAction(QtGui.QIcon('play.png'), 'Play').triggered.connect(self.play)
 
     def open_scene(self):
-        path, filter = QtWidgets.QFileDialog.getOpenFileName(self,'Open Scene File','.','*.scene')
+        path, filter = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Scene File', '.', '*.scene')
         if path:
             self.sandbox.load_scene(path)
 
@@ -301,11 +328,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sandbox.restart()
 
     def pause(self):
-        self.paused=True
-        self.last_time=0
+        self.paused = True
+        self.last_time = 0
 
     def play(self):
-        self.paused=False
+        self.paused = False
 
     def shutdown(self):
         self.sandbox.shutdown()
@@ -321,20 +348,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main():
-    scene_path=''
+    scene_path = ''
     for arg in sys.argv:
         if arg == 'dbg':
-            global DEBUG
-            DEBUG = True
+            server.DEBUG = True
         if arg.endswith('.scene'):
-            scene_path=arg
+            scene_path = arg
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow(scene_path)
     if not w.done:
         w.show()
         app.exec_()
     else:
-        QtWidgets.QMessageBox.critical(None,'Error','Simulator Already Running')
+        QtWidgets.QMessageBox.critical(None, 'Error', 'Simulator Already Running')
     w.shutdown()
 
 

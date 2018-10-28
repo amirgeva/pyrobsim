@@ -4,6 +4,8 @@ import time
 import errno
 import sys
 
+DEBUG = False
+
 
 class Robot:
     def __init__(self, host='127.0.0.1'):
@@ -14,14 +16,29 @@ class Robot:
         self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sensor = None
         self.encoders = None
+        self.send_message('RESET')
 
     def send_message(self, message):
         self.send_sock.sendto(bytes(message, 'utf-8'), self.address)
 
+    def read_encoders(self):
+        self.send_message('E')
+        result = (0.0, 0.0)
+        for i in range(10):
+            if self.encoders:
+                result = self.encoders
+                self.encoders = None
+                break
+            time.sleep(0.02)
+        return result
+
     def drive(self, l, r):
         self.send_message('V {} {}'.format(l, r))
 
-    def sensor_angle(self,a):
+    def stop(self):
+        self.drive(0,0)
+
+    def sensor_angle(self, a):
         self.send_message('SA {}'.format(a))
 
     def sense(self):
@@ -35,9 +52,16 @@ class Robot:
             time.sleep(0.02)
         return result
 
+    def __del__(self):
+        if self.receive_thread:
+            self.shutdown()
+
     def shutdown(self):
-        self.done=True
-        self.receive_thread.join()
+        if self.receive_thread:
+            self.stop()
+            self.done = True
+            self.receive_thread.join()
+            self.receive_thread=None
 
     def receive_loop(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -50,7 +74,8 @@ class Robot:
                     time.sleep(0.01)
                 else:
                     response = str(data, 'utf-8')
-                    #print("Received from '{}' data='{}'".format(addr, response))
+                    if DEBUG:
+                        print("Received from '{}' data='{}'".format(addr, response))
                     try:
                         p = response.strip().split()
                         if p[0] == 'S':
@@ -67,15 +92,15 @@ class Robot:
 
 
 def unit_test():
-    r=Robot()
-    #print(r.sense())
-    #r.drive(10,10)
-    #time.sleep(1)
-    for i in range(-45,45):
+    r = Robot()
+    # print(r.sense())
+    # r.drive(10,10)
+    # time.sleep(1)
+    for i in range(-45, 45):
         r.sensor_angle(i)
         time.sleep(0.1)
     r.shutdown()
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     unit_test()
