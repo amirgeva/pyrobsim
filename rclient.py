@@ -5,10 +5,10 @@ import errno
 import sys
 
 DEBUG = False
+simhook=[None]
 
-
-class Robot:
-    def __init__(self, host='127.0.0.1'):
+class SocketRobot:
+    def __init__(self,host):
         self.done = False
         self.address = (host, 9080)
         self.receive_thread = threading.Thread(target=self.receive_loop)
@@ -89,6 +89,58 @@ class Robot:
                 if errnum != errno.EAGAIN and errnum != errno.EWOULDBLOCK:
                     reason = ''  # get_error_name(errnum)
                     print("Socket Error ({}): {}".format(errnum, reason))
+
+
+class DirectRobot:
+    def __init__(self):
+        self.hook = simhook[0]
+
+    def drive(self,l,r):
+        if self.hook:
+            self.hook.command_velocity([l,r])
+
+    def stop(self):
+        self.drive(0,0)
+
+    def sensor_angle(self, a):
+        if self.hook and (isinstance(a,int) or isinstance(a,float)):
+            self.hook.command_sensor_angle([a])
+
+    def read_encoders(self):
+        if self.hook:
+            s=self.hook.command_encoders(None)
+            s=s.strip().split()
+            return (float(s[1]),float(s[2]))
+        return (0,0)
+
+    def sense(self):
+        if self.hook:
+            s=self.hook.command_sensor(None)
+            s=s.strip().split()
+            return float(s[1])
+        return -1
+
+class Robot:
+    def __init__(self, param):
+        if isinstance(param,int):
+            self.impl = DirectRobot()
+        if isinstance(param,str):
+            self.impl = SocketRobot(param)
+
+    def drive(self,l,r):
+        self.impl.drive(l,r)
+
+    def stop(self):
+        self.impl.stop()
+
+    def sensor_angle(self, a):
+        self.impl.sensor_angle(a)
+
+    def read_encoders(self):
+        return self.impl.read_encoders()
+
+    def sense(self):
+        return self.impl.sense()
 
 
 def unit_test():

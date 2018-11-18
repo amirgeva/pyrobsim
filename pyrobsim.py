@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import sys
+import os
 import math
 import time
 from PyQt5 import QtCore, QtGui, QtWidgets
 from vtypes import matrix, pt, vec2
 from geometry import check_intersection, ray_intersection
 import server
+import rclient
 
 draw_circles = False
 start = time.time()
@@ -66,8 +68,8 @@ class Robot(Object):
         self.orig_pic = QtGui.QImage('robot.png')
         self.build_rect_poly(self.orig_pic.width(), self.orig_pic.height())
         self.orig_poly = self.poly
-        self.start_pose = (150,150,0)
-        self.pos = pt(0,0)
+        self.start_pose = (150, 150, 0)
+        self.pos = pt(0, 0)
         self.width = self.orig_pic.width()
         self.angle = 0
         self.restart()
@@ -83,7 +85,7 @@ class Robot(Object):
                          'E': self.command_encoders, 'RESET': self.command_reset}
 
     def restart(self):
-        self.set_pos(self.start_pose[0],self.start_pose[1])
+        self.set_pos(self.start_pose[0], self.start_pose[1])
         self.set_angle(self.start_pose[2])
         self.set_sensor_angle(0.0)
         self.velocity = vec2(0.0, 0.0)
@@ -99,7 +101,7 @@ class Robot(Object):
         handler = self.commands.get(cmd)
         return handler(args)
 
-    def command_reset(self,args):
+    def command_reset(self, args):
         self.restart()
 
     def command_velocity(self, args):
@@ -161,8 +163,8 @@ class Robot(Object):
             else:
                 self.pos = a
 
-    def set_start_pose(self,x,y,a):
-        self.start_pose=(x,y,a)
+    def set_start_pose(self, x, y, a):
+        self.start_pose = (x, y, a)
         self.restart()
 
     def pic_center(self):
@@ -220,6 +222,7 @@ class SandboxWidget(QtWidgets.QWidget):
         self.obstacles = [Obstacle(300, 100, 150, 30, 20)]
         self.lines = []
         self.robot = Robot()
+        rclient.simhook[0] = self.robot
         self.robot.set_obstacles(self.obstacles)
 
     def restart(self):
@@ -263,8 +266,8 @@ class SandboxWidget(QtWidgets.QWidget):
         pen = QtGui.QPen(QtGui.QBrush(QtGui.QColor(255, 96, 32)), 3)
         qp.setPen(pen)
         for line in self.lines:
-            qp.drawLine(line[0],line[1],line[2],line[3])
-            #qp.drawLine(int(line[0]),int(line[1]),int(line[2]),int(line[3]))
+            qp.drawLine(line[0], line[1], line[2], line[3])
+            # qp.drawLine(int(line[0]),int(line[1]),int(line[2]),int(line[3]))
 
     def paintEvent(self, event):
         qp = QtGui.QPainter()
@@ -344,7 +347,19 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.last_time > 0:
                 dt = current_time - self.last_time
             self.last_time = current_time
+            import simrobot
+            simrobot.run()
             self.sandbox.advance(dt)
+
+
+def read_path_from_file(name):
+    try:
+        res = open(name, 'r').readline().strip()
+        if res.startswith('@'):
+            return read_path_from_file(res[1:])
+        return res
+    except FileNotFoundError:
+        return ''
 
 
 def main():
@@ -354,6 +369,10 @@ def main():
             server.DEBUG = True
         if arg.endswith('.scene'):
             scene_path = arg
+
+    if not scene_path and os.path.exists('cur.cfg'):
+        scene_path = read_path_from_file('cur.cfg')
+
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow(scene_path)
     if not w.done:
