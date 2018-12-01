@@ -53,11 +53,13 @@ class Obstacle(Object):
         self.poly = mat.map(self.poly)
         self.poly.translate(self.pos)
 
-    def draw(self, qp):
+    def draw(self, qp, offset):
         color = QtGui.QColor(0, 0, 255)
         qp.setBrush(QtGui.QBrush(color))
         qp.setPen(color)
-        qp.drawPolygon(self.poly)
+        poly=QtGui.QPolygonF(self.poly)
+        poly.translate(-offset)
+        qp.drawPolygon(poly)
         super(Obstacle, self).draw(qp)
 
 
@@ -106,7 +108,8 @@ class Robot(Object):
 
     def command_velocity(self, args):
         if len(args) == 2:
-            self.velocity = vec2(args[0], args[1])
+            if abs(args[0])<=250 and abs(args[1])<=250:
+                self.velocity = vec2(args[0], args[1])
         return ''
 
     def command_sensor_angle(self, args):
@@ -191,9 +194,9 @@ class Robot(Object):
         qp.setPen(QtGui.QPen(QtGui.QBrush(QtGui.QColor(0, 0, 255)), 2))
         qp.drawLine(pos + p1, pos + p2)
 
-    def draw(self, qp):
+    def draw(self, qp, offset):
         self.update_image()
-        draw_pos = self.pos - self.pic_center()
+        draw_pos = self.pos - self.pic_center() - offset
         qp.drawImage(draw_pos, self.pic)
         super(Robot, self).draw(qp)
 
@@ -224,6 +227,7 @@ class SandboxWidget(QtWidgets.QWidget):
         self.robot = Robot()
         rclient.simhook[0] = self.robot
         self.robot.set_obstacles(self.obstacles)
+        self.offset = pt(0.0,0.0)
 
     def restart(self):
         self.over = False
@@ -248,19 +252,23 @@ class SandboxWidget(QtWidgets.QWidget):
         w = self.width()
         h = self.height()
         step = 20
-        x = 0
-        y = 0
+        x = step - self.offset.x() % step
+        wx = int(round(x + self.offset.x()))
+        y = step - self.offset.y() % step
+        wy = int(round(y + self.offset.y()))
         if self.over:
             qp.fillRect(0, 0, w, h, QtGui.QColor(255, 0, 0))
         p1 = QtGui.QPen(QtGui.QBrush(QtGui.QColor(128, 128, 128)), 1)
         p2 = QtGui.QPen(QtGui.QBrush(QtGui.QColor(0, 0, 0)), 2)
         while x < w or y < h:
-            qp.setPen(p2 if (y % 100) == 0 else p1)
+            qp.setPen(p2 if (wy % 100) < step else p1)
             qp.drawLine(0, y, w, y)
-            qp.setPen(p2 if (x % 100) == 0 else p1)
+            qp.setPen(p2 if (wx % 100) < step else p1)
             qp.drawLine(x, 0, x, h)
             y += step
             x += step
+            wy += step
+            wx += step
 
     def draw_lines(self, qp):
         pen = QtGui.QPen(QtGui.QBrush(QtGui.QColor(255, 96, 32)), 3)
@@ -272,11 +280,14 @@ class SandboxWidget(QtWidgets.QWidget):
     def paintEvent(self, event):
         qp = QtGui.QPainter()
         qp.begin(self)
+        w = self.width()
+        h = self.height()
+        self.offset = self.robot.pos - pt(w*0.5,h*0.5)
         self.draw_grid(qp)
         self.draw_lines(qp)
         for o in self.obstacles:
-            o.draw(qp)
-        self.robot.draw(qp)
+            o.draw(qp,self.offset)
+        self.robot.draw(qp,self.offset)
         qp.end()
 
     def check_intersections(self):

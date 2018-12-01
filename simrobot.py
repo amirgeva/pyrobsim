@@ -2,30 +2,24 @@ import rclient
 import math
 
 R = rclient.Robot(1)
-speed = 150
-count = 0
-sensor_angle = 0
+speed = 100
 
-def update_angle():
-    global count
-    (left,right)=R.read_encoders()
-    angle = math.atan2(left-right,40)
-    angle = math.degrees(angle)
-    count = count - angle
+
+def is_obstacle(angle):
+    R.sensor_angle(angle)
+    return R.sense() > 0
+
+
+def driving_decision():
+    if is_obstacle(-45):
+        turning = 10
+    else:
+        turning = -10
+    if is_obstacle(0):
+        turning = 40
+    return turning
+
 
 def run():
-    global count, speed, sensor_angle
-
-    if count>0:
-        R.drive(speed,-speed)
-        update_angle()
-    else:
-        R.drive(speed,speed)
-    R.sensor_angle(sensor_angle)
-    sensor_angle = sensor_angle + 10
-    if sensor_angle >= 90:
-        sensor_angle = -90
-    s = R.sense()
-    if s>0 and s<100:
-        count=10
-    #print("count={}  s={}".format(count,s))
+    turning = driving_decision()
+    R.drive(speed + turning, speed - turning)
